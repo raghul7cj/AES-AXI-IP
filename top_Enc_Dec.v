@@ -21,7 +21,8 @@ module AES_top #(
     plain_text_out,
 
     // Status
-    done_key_expansion
+    done_key_expansion,
+    key_is_valid
 );
 
     //-------------------------------------------------
@@ -48,6 +49,7 @@ module AES_top #(
 
     //-- Status
     output                      done_key_expansion;
+    output                      key_is_valid;
 
     //-------------------------------------------------
     // Internal Signals
