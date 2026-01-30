@@ -21,41 +21,16 @@ module aes_unrolled_pipelined_Encrypt #(
         end
     endgenerate
 
-    // 2. Input Buffering (Plaintext and Valid must be delayed together)
-    reg [127:0] plaintext_r, plaintext_r1;
-    reg         in_valid_r;
-
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            plaintext_r <= 128'd0;
-            plaintext_r1 <= 128'd0;
-            in_valid_r  <= 1'b0;
-        end else begin
-            plaintext_r1 <= plaintext;
-            plaintext_r <= plaintext_r1;
-            in_valid_r  <= in_valid; // Now Valid matches Data delay
-        end
-    end
-
-    // 3. Initial AddRoundKey (ARK0)
-    
-//    always @(posedge clk or negedge rst_n) begin
-//        if (!rst_n) begin
-//            state_after_ark0 <= 128'd0;
-//        end else if (in_valid_r) begin // Use delayed valid
-//            state_after_ark0 <= plaintext_r ^ rk[0];
-//        end
-//    end
     reg [127:0] state_after_ark0;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            state_after_ark0 <= 128'd0;
-        end else begin
-            // ALWAYS register data (never gate with valid)
-            state_after_ark0 <= plaintext_r ^ rk[0];
-        end
-    end
+   always @(posedge clk or negedge rst_n) begin
+       if (!rst_n) begin
+           state_after_ark0 <= 128'd0;
+       end else if (in_valid) begin 
+           state_after_ark0 <= plaintext ^ rk[0];
+       end
+   end
+
 
     // 4. AES Rounds
     wire [127:0] round_input [0:NR-1];
@@ -91,9 +66,6 @@ module aes_unrolled_pipelined_Encrypt #(
     end
 
     assign out_valid = valid_pipe[PIPELINE_DEPTH-1];
-    // 6. Outputs
-    assign out_valid  = valid_pipe[PIPELINE_DEPTH-1];
     assign ciphertext = round_output[NR-1];
 
 endmodule
-
