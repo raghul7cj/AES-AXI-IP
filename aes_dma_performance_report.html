@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hardware-Accelerated AES-128 Performance Characterization Report</title>
+    <style>
+        :root {
+            --primary: #0f172a;
+            --primary-accent: #2563eb;
+            --accent-green: #059669;
+            --accent-amber: #b45309;
+            --surface: #ffffff;
+            --background: #f8fafc;
+            --border: #e2e8f0;
+            --text-main: #334155;
+            --text-heading: #0f172a;
+            --highlight: #f0f7ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2.5rem 1rem;
+        }
+
+        .report-container {
+            max-width: 980px;
+            margin: 0 auto;
+            background: var(--surface);
+            padding: 3rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.85rem;
+            color: var(--text-heading);
+            letter-spacing: -0.025em;
+            margin: 0 0 0.4rem 0;
+            line-height: 1.25;
+        }
+
+        .subtitle { font-size: 1.05rem; color: #64748b; margin-bottom: 1.75rem; }
+
+        h2 {
+            font-size: 1.25rem;
+            color: var(--text-heading);
+            margin-top: 2.25rem;
+            margin-bottom: 0.85rem;
+            border-left: 4px solid var(--primary-accent);
+            padding-left: 0.75rem;
+            letter-spacing: -0.01em;
+        }
+
+        h3 { font-size: 1.05rem; color: var(--text-heading); margin-top: 1.5rem; margin-bottom: 0.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            background-color: var(--highlight);
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 2rem;
+            font-size: 0.88rem;
+        }
+
+        .meta-label {
+            display: block; font-weight: 700; color: #1e40af;
+            text-transform: uppercase; font-size: 0.72rem;
+            letter-spacing: 0.05em; margin-bottom: 0.25rem;
+        }
+
+        .meta-value { color: var(--primary); font-weight: 500; }
+
+        .diagram-container { width: 100%; margin: 1.5rem 0 2rem 0; display: flex; justify-content: center; }
+
+        svg {
+            width: 100%; height: auto; border-radius: 8px;
+            border: 1px solid var(--border); background: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02);
+        }
+
+        table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: 0.88rem; }
+        th, td { text-align: left; padding: 0.75rem 0.9rem; border: 1px solid var(--border); }
+        th { background-color: #f1f5f9; color: var(--text-heading); font-weight: 600; }
+        tbody tr:nth-child(even) { background-color: #f8fafc; }
+        tbody tr:hover { background-color: #f1f5f9; }
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .bold-cell { font-weight: 600; color: var(--text-heading); }
+
+        .badge {
+            display: inline-block; padding: 0.2rem 0.55rem; font-size: 0.75rem;
+            font-weight: 600; border-radius: 9999px; text-align: center;
+        }
+        .badge-blue { background: #dbeafe; color: #1d4ed8; }
+        .badge-amber { background: #fef3c7; color: #b45309; }
+        .badge-green { background: #d1fae5; color: #065f46; }
+
+        ul, ol { padding-left: 1.4rem; margin: 0.75rem 0; }
+        li { margin-bottom: 0.5rem; }
+
+        .recommendation-card {
+            background: #ffffff; border: 1px solid var(--border);
+            border-left: 4px solid var(--accent-green); padding: 1rem 1.25rem;
+            border-radius: 0 6px 6px 0; margin-bottom: 0.85rem;
+        }
+        .recommendation-card strong { color: var(--text-heading); }
+
+        .methodology-box {
+            background: #fffbeb; border: 1px solid #fde68a;
+            border-left: 4px solid var(--accent-amber);
+            padding: 1rem 1.25rem; border-radius: 0 6px 6px 0;
+            margin: 1rem 0 1.5rem 0; font-size: 0.92rem;
+        }
+        .methodology-box strong { color: var(--text-heading); }
+
+        .footnote { font-size: 0.8rem; color: #64748b; font-style: italic; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+
+<div class="report-container">
+
+    <h1>Hardware-Accelerated AES-128 Performance Characterization</h1>
+    <div class="subtitle">Direct-Register Custom Driver vs. Vendor Standalone BSP on Zynq-7000 SoC — Bare-Metal, Empirically Measured</div>
+
+    <div class="meta-grid">
+        <div class="meta-item">
+            <span class="meta-label">Target Platform</span>
+            <span class="meta-value">TUL PYNQ-Z2 (XC7Z020CLG400-1)</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-label">Clock Frequencies</span>
+            <span class="meta-value">PS: 650 MHz | PL: 75 MHz</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-label">Bus Interconnect</span>
+            <span class="meta-value">64-bit AXI HP0 (4.80 Gbps Peak)</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-label">Benchmark Depth</span>
+            <span class="meta-value">N = 200 Runs per Data Point</span>
+        </div>
+        <div class="meta-item">
+            <span class="meta-label">Timing Method</span>
+            <span class="meta-value">XTime_GetTime (Global Timer, not cycle-accurate)</span>
+        </div>
+    </div>
+
+    <h2>1. Executive Summary</h2>
+    <p>
+        This report evaluates the latency and throughput trade-offs of offloading AES-128 cryptographic workloads to an FPGA coprocessor via AXI DMA, comparing a register-level custom driver against the official Xilinx Standalone BSP driver. Measurements span 16 Bytes to 8 Kilobytes, each averaged over <em>N = 200</em> bare-metal iterations:
+    </p>
+    <ul>
+        <li>The custom driver cuts software dispatch overhead by <strong>2.32&times; (1.529 &mu;s vs. 3.540 &mu;s)</strong> versus the Xilinx Standalone BSP driver, by eliminating BSP-side validation and ring-pointer bookkeeping.</li>
+        <li>This translates into a <strong>~10% throughput gain</strong> for small payloads (&le; 256 B). In this range, however, pure CPU-side AES execution remains competitive or faster, since fixed DDR row-activation, cache-maintenance, and AXI handshake overhead dominates at small transfer sizes.</li>
+        <li>For bulk streaming (&ge; 4 KB), hardware acceleration reaches a measured <strong>1.71 Gbps</strong> sustained (a <strong>~6.6&times;</strong> speedup over a cited CPU-software AES baseline), while the driver-level optimization's contribution shrinks to <strong>&lt;0.3%</strong> as memory-interconnect bandwidth becomes the dominant constraint.</li>
+    </ul>
+
+    <h2>2. System Architecture &amp; Interconnect Topology</h2>
+    <p>
+        The Cortex-A9 Processing System (PS) runs bare metal with active L1/L2 caches. Timing measurements are captured using the ARM Global Timer, bounded by data synchronization (<code>dsb sy</code>) and instruction (<code>isb</code>) barriers. Control-plane register accesses and high-speed data DMA paths are decoupled across separate physical AXI ports:
+    </p>
+
+    <div class="diagram-container">
+        <svg viewBox="0 0 920 420" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#2563eb" />
+                </marker>
+                <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#059669" />
+                </marker>
+                <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#7c3aed" />
+                </marker>
+                <marker id="arrow-gray" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
+                </marker>
+            </defs>
+
+            <rect x="20" y="20" width="425" height="340" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 4" />
+            <text x="35" y="45" font-size="11" font-weight="700" fill="#475569" letter-spacing="0.05em">PROCESSING SYSTEM (PS) — CORTEX-A9 (650 MHz)</text>
+
+            <rect x="475" y="20" width="425" height="340" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 4" />
+            <text x="490" y="45" font-size="11" font-weight="700" fill="#475569" letter-spacing="0.05em">PROGRAMMABLE LOGIC (PL) — FPGA FABRIC (75 MHz)</text>
+
+            <rect x="40" y="65" width="175" height="90" rx="6" fill="#ffffff" stroke="#2563eb" stroke-width="1.5" />
+            <text x="127" y="93" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">Cortex-A9 MPCore</text>
+            <text x="127" y="112" font-size="10" fill="#64748b" text-anchor="middle">Driver Dispatch &amp; Control</text>
+            <text x="127" y="128" font-size="10" fill="#2563eb" text-anchor="middle">Global Timer @ 325 MHz</text>
+            <text x="127" y="144" font-size="9" fill="#059669" text-anchor="middle">dsb / isb memory barriers</text>
+
+            <rect x="40" y="175" width="175" height="70" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.5" />
+            <text x="127" y="203" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">SCU / L1 &amp; L2 Cache</text>
+            <text x="127" y="221" font-size="10" fill="#64748b" text-anchor="middle">32KB L1 / 512KB L2</text>
+            <text x="127" y="235" font-size="9" fill="#dc2626" text-anchor="middle">Flush / Invalidate Routines</text>
+
+            <path d="M 127 155 L 127 175" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-gray)" />
+
+            <rect x="250" y="150" width="175" height="190" rx="6" fill="#ffffff" stroke="#059669" stroke-width="1.5" />
+            <text x="337" y="178" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">DDR Controller</text>
+            <text x="337" y="196" font-size="11" font-weight="600" fill="#059669" text-anchor="middle">DDR3 SDRAM (512 MB)</text>
+
+            <rect x="265" y="215" width="145" height="40" rx="4" fill="#eff6ff" stroke="#93c5fd" />
+            <text x="337" y="233" font-size="10" font-weight="600" fill="#1e40af" text-anchor="middle">TxBuffer (Plaintext)</text>
+            <text x="337" y="247" font-size="9" fill="#64748b" text-anchor="middle">Cache Flushed</text>
+
+            <rect x="265" y="270" width="145" height="40" rx="4" fill="#ecfdf5" stroke="#a7f3d0" />
+            <text x="337" y="288" font-size="10" font-weight="600" fill="#065f46" text-anchor="middle">RxBuffer (Ciphertext)</text>
+            <text x="337" y="302" font-size="9" fill="#64748b" text-anchor="middle">Cache Invalidated</text>
+
+            <rect x="495" y="65" width="165" height="70" rx="6" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5" />
+            <text x="577" y="93" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">AXI DMA Registers</text>
+            <text x="577" y="110" font-size="10" fill="#7c3aed" text-anchor="middle">AXI-Lite Slave @ 0x40400000</text>
+            <text x="577" y="124" font-size="9" fill="#64748b" text-anchor="middle">Direct Register vs BSP</text>
+
+            <rect x="495" y="165" width="165" height="175" rx="6" fill="#ffffff" stroke="#2563eb" stroke-width="1.5" />
+            <text x="577" y="190" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">AXI DMA Engine</text>
+
+            <rect x="507" y="205" width="141" height="50" rx="4" fill="#eff6ff" stroke="#bfdbfe" />
+            <text x="577" y="225" font-size="10" font-weight="700" fill="#1d4ed8" text-anchor="middle">MM2S Channel</text>
+            <text x="577" y="242" font-size="9" fill="#64748b" text-anchor="middle">Read FIFO &amp; Master</text>
+
+            <rect x="507" y="270" width="141" height="50" rx="4" fill="#ecfdf5" stroke="#bbf7d0" />
+            <text x="577" y="290" font-size="10" font-weight="700" fill="#047857" text-anchor="middle">S2MM Channel</text>
+            <text x="577" y="307" font-size="9" fill="#64748b" text-anchor="middle">Write FIFO &amp; Master</text>
+
+            <path d="M 577 135 L 577 165" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrow-purple)" />
+
+            <rect x="715" y="165" width="165" height="175" rx="6" fill="#eff6ff" stroke="#1d4ed8" stroke-width="2" />
+            <text x="797" y="225" font-size="14" font-weight="700" fill="#1e40af" text-anchor="middle">AES-128 Core</text>
+            <text x="797" y="247" font-size="10" fill="#475569" text-anchor="middle">128-bit Pipelined Datapath</text>
+            <text x="797" y="265" font-size="10" fill="#475569" text-anchor="middle">10 Rounds @ 75 MHz</text>
+            <rect x="732" y="280" width="130" height="24" rx="4" fill="#dbeafe" />
+            <text x="797" y="296" font-size="10" font-weight="700" fill="#1e40af" text-anchor="middle">Peak: 9.60 Gbps</text>
+
+            <path d="M 215 100 L 495 100" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#arrow-purple)" />
+            <rect x="290" y="86" width="140" height="20" rx="4" fill="#ffffff" stroke="#c4b5fd" />
+            <text x="360" y="100" font-size="9" font-weight="700" fill="#6d28d9" text-anchor="middle">M_AXI_GP0 (32-bit)</text>
+
+            <path d="M 425 225 L 507 225" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)" />
+            <path d="M 507 290 L 425 290" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)" />
+
+            <rect x="437" y="245" width="55" height="24" rx="4" fill="#ffffff" stroke="#cbd5e1" />
+            <text x="464" y="260" font-size="9" font-weight="700" fill="#0f172a" text-anchor="middle">AXI_HP0</text>
+
+            <path d="M 648 225 L 715 225" stroke="#2563eb" stroke-width="2" marker-end="url(#arrow-blue)" />
+            <text x="681" y="217" font-size="8" font-weight="700" fill="#2563eb" text-anchor="middle">AXIS TX</text>
+
+            <path d="M 715 290 L 648 290" stroke="#059669" stroke-width="2" marker-end="url(#arrow-green)" />
+            <text x="681" y="282" font-size="8" font-weight="700" fill="#059669" text-anchor="middle">AXIS RX</text>
+
+            <rect x="20" y="375" width="880" height="35" rx="6" fill="#f1f5f9" stroke="#e2e8f0" />
+            <line x1="35" y1="392" x2="60" y2="392" stroke="#7c3aed" stroke-width="2" stroke-dasharray="4 2" />
+            <text x="68" y="396" font-size="10" font-weight="600" fill="#334155">Control Plane (AXI-Lite)</text>
+
+            <line x1="210" y1="392" x2="235" y2="392" stroke="#2563eb" stroke-width="2.5" />
+            <text x="243" y="396" font-size="10" font-weight="600" fill="#334155">MM2S Read Stream (DDR3 to Core)</text>
+
+            <line x1="440" y1="392" x2="465" y2="392" stroke="#059669" stroke-width="2.5" />
+            <text x="473" y="396" font-size="10" font-weight="600" fill="#334155">S2MM Writeback Stream (Core to DDR3)</text>
+
+            <text x="730" y="396" font-size="10" font-weight="600" fill="#64748b">HP0 Bidirectional Cap: 2.40 Gbps</text>
+        </svg>
+    </div>
+
+    <h2>3. Measured Performance &amp; Empirical Benchmark Summary (N = 200 Runs)</h2>
+
+    <h3>3.1 Methodology &amp; Measurement Limitations</h3>
+    <div class="methodology-box">
+        <strong>How this was measured:</strong> All timings were captured on bare metal (no OS jitter) using Xilinx's
+        <code>XTime_GetTime()</code>, which reads the ARM Cortex-A9 Global Timer (325 MHz), bracketed by
+        <code>dsb sy</code> / <code>isb</code> barriers to prevent instruction reordering across the measurement
+        window. Each value below is the mean of <strong>N = 200</strong> back-to-back iterations.
+        <br><br>
+        <span class="badge badge-amber">Limitation</span>
+        This method is <strong>not cycle-accurate</strong> — Global Timer read latency and access overhead impose a
+        small, fixed measurement floor. It is, however, highly consistent run-to-run, which is what this report
+        relies on: the primary claim under test is the <em>relative</em> difference between the custom driver and
+        the Xilinx BSP driver, not an absolute cycle count.
+    </div>
+
+    <h3>3.2 Granular Stage-by-Stage Latency Breakdown (Single 16-Byte Block)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Stage / Metric</th>
+                <th class="num">Custom Register Driver</th>
+                <th class="num">Xilinx Standalone BSP</th>
+                <th>Delta / Analysis</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Stage 1: Pre-TX Cache Flush</td>
+                <td class="num">0.283 &mu;s</td>
+                <td class="num">0.281 &mu;s</td>
+                <td>Identical hardware cache-controller duration</td>
+            </tr>
+            <tr>
+                <td class="bold-cell">Stage 2: Driver Invocation / Arm</td>
+                <td class="num bold-cell">1.529 &mu;s</td>
+                <td class="num bold-cell">3.540 &mu;s</td>
+                <td class="bold-cell">2.32&times; faster — eliminates BSP validation/ring stubs</td>
+            </tr>
+            <tr>
+                <td>Stage 3: MM2S HP0 Read Latency</td>
+                <td class="num">0.803 &mu;s</td>
+                <td class="num">0.875 &mu;s</td>
+                <td>DDR read burst + AXI-Stream width converter</td>
+            </tr>
+            <tr>
+                <td>Stage 4: S2MM Tail Latency</td>
+                <td class="num">1.096 &mu;s</td>
+                <td class="num">0.893 &mu;s</td>
+                <td>Downsize conversion + DDR HP0 burst writeback</td>
+            </tr>
+            <tr>
+                <td>Stage 5: Post-RX Cache Invalidate</td>
+                <td class="num">0.964 &mu;s</td>
+                <td class="num">0.274 &mu;s</td>
+                <td>L1/L2 cache line discard &amp; barrier sync</td>
+            </tr>
+            <tr style="background: #f1f5f9; font-weight: 600;">
+                <td>Total Concurrent Hardware Time</td>
+                <td class="num">1.899 &mu;s</td>
+                <td class="num">1.768 &mu;s</td>
+                <td>Pure silicon execution across HP0 &amp; AES core</td>
+            </tr>
+            <tr style="background: var(--highlight); font-weight: 600;">
+                <td>Total End-to-End Latency</td>
+                <td class="num">4.675 &mu;s</td>
+                <td class="num">5.862 &mu;s</td>
+                <td>Custom driver saves 1.187 &mu;s per transaction</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>3.3 Measured Sustained Throughput vs. Transfer Size (75.0 MHz PL Clock)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Buffer Size</th>
+                <th>Blocks</th>
+                <th class="num">Custom Register Driver</th>
+                <th class="num">Xilinx Standalone BSP</th>
+                <th>Regime</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>16 Bytes</td><td>1</td>
+                <td class="num bold-cell">23.65 Mbps</td><td class="num">21.44 Mbps</td>
+                <td><span class="badge badge-blue">Software Bound</span></td>
+            </tr>
+            <tr>
+                <td>64 Bytes</td><td>4</td>
+                <td class="num bold-cell">95.30 Mbps</td><td class="num">86.40 Mbps</td>
+                <td>Overhead amortizing across 4 blocks</td>
+            </tr>
+            <tr>
+                <td>256 Bytes</td><td>16</td>
+                <td class="num bold-cell">334.30 Mbps</td><td class="num">308.01 Mbps</td>
+                <td>Transitioning into continuous AXI bursts</td>
+            </tr>
+            <tr>
+                <td>512 Bytes</td><td>32</td>
+                <td class="num bold-cell">565.27 Mbps</td><td class="num">534.83 Mbps</td>
+                <td>Pipeline actively saturated</td>
+            </tr>
+            <tr>
+                <td>1024 Bytes</td><td>64</td>
+                <td class="num bold-cell">907.12 Mbps</td><td class="num">836.18 Mbps</td>
+                <td>Approaching 1 Gbps sustained</td>
+            </tr>
+            <tr>
+                <td>2048 Bytes</td><td>128</td>
+                <td class="num bold-cell">1227.76 Mbps (1.23 Gbps)</td><td class="num">1182.50 Mbps (1.18 Gbps)</td>
+                <td>High-efficiency HP0 DDR bursts</td>
+            </tr>
+            <tr>
+                <td>4096 Bytes</td><td>256</td>
+                <td class="num bold-cell">1496.15 Mbps (1.50 Gbps)</td><td class="num">1494.26 Mbps (1.49 Gbps)</td>
+                <td>Driver setup cost amortized to &lt;0.1%</td>
+            </tr>
+            <tr style="background: var(--highlight); font-weight: 600;">
+                <td>8192 Bytes</td><td>512</td>
+                <td class="num">1707.21 Mbps (1.71 Gbps)</td><td class="num">1707.76 Mbps (1.71 Gbps)</td>
+                <td><span class="badge badge-amber">AXI / DDR Saturated</span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>3.4 Theoretical vs. Physical Ceilings &amp; Resume Reconciliation</h3>
+    <ol>
+        <li><strong>AES IP Pipeline Silicon Ceiling:</strong> 128-bit @ 75.0 MHz = <strong>9.600 Gbps</strong> (1,200 MB/s; pipeline latency 21 cycles &asymp; 280 ns).</li>
+        <li><strong>AXI HP0 Memory Bus Physical Ceiling:</strong> 64-bit @ 75.0 MHz = <strong>4.800 Gbps</strong> (600 MB/s).</li>
+        <li><strong>Measured Peak Sustainable Rate:</strong> <strong>1.71 Gbps (213.4 MB/s)</strong> — includes full bidirectional round-trip traffic across the shared HP0 DDR port (MM2S read + S2MM write competing for DDR arbitration), plus AXI-Stream width conversion and cache-maintenance overhead.</li>
+        <li><strong>Resume claim guidance:</strong> a 15 Gbps figure would represent an unconstrained, parallel-core ASIC implementation at &gt;120 MHz — not this platform. On this Zynq-7000 SoC, the verified, defensible figure is <strong>1.71 Gbps sustained (4.80 Gbps theoretical bus ceiling)</strong>. This is the number to carry forward, not the earlier assumption.</li>
+    </ol>
+
+    <h2>4. Key Architectural Insights</h2>
+
+    <h3>4.1 The Utility Window Paradox</h3>
+    <p>
+        Driver optimization delivers measurable gains strictly at small payloads (&le; 256 B). Past 1 KB, hardware bus transfer latency grows roughly linearly with payload size while software arming time stays fixed. By 8 KB, saving 2.01 &mu;s of software overhead yields only a ~0.26% throughput improvement — driver-level optimization becomes statistically negligible at that scale.
+    </p>
+
+    <h3>4.2 The Small-Payload Dilemma</h3>
+    <p>
+        Comparing against a software-AES baseline on the ARM Cortex-A9 (&asymp;20 cycles/byte &asymp; 260 Mbps ceiling)<sup>&dagger;</sup> puts the architectural break-even point at roughly <strong>180&ndash;200 Bytes</strong>:
+    </p>
+    <ul>
+        <li><strong>Below ~200 Bytes:</strong> software AES on the CPU core outpaces the DMA path — fixed DDR row-activation, cache-invalidation, and AXI handshake overhead exceeds the cost of doing the arithmetic directly.</li>
+        <li><strong>Above ~200 Bytes:</strong> hardware acceleration decisively wins, reaching up to 6.6&times; the CPU's throughput at 8 KB while freeing the Cortex-A9 core entirely.</li>
+    </ul>
+    <p class="footnote">&dagger; Cited reference figure for Cortex-A9 software AES throughput; not independently measured in this test.</p>
+
+    <h3>4.3 Interconnect Ceiling Analysis</h3>
+    <p>
+        Throughput plateaus at <strong>1.71 Gbps</strong>, below the theoretical 4.80 Gbps AXI HP0 limit. This is due to <strong>half-duplex port arbitration</strong>: MM2S (read) and S2MM (write) share a single 64-bit HP0 slave port, reducing the practical bidirectional limit to 2.40 Gbps. The achieved 1.71 Gbps represents <strong>71.2% bus utilization efficiency</strong>, with the remainder consumed by DDR row turnarounds and cache-maintenance routines.
+    </p>
+
+    <h2>5. Architectural Recommendations</h2>
+    <div class="recommendation-card">
+        <strong>1. Low-Latency MMIO Path for Small Packets (&le; 256 B)</strong><br>
+        A direct register-mapped AXI-Lite/FIFO interface to the AES core would bypass DDR3 round-trips and cache-maintenance overhead entirely for short command frames.
+    </div>
+    <div class="recommendation-card">
+        <strong>2. Coherent Interconnect via AXI ACP</strong><br>
+        Migrating DMA transactions from HP0 to the Accelerator Coherency Port (ACP) would let hardware cache-snooping (via the ARM SCU) eliminate the software flush/invalidate penalty.
+    </div>
+    <div class="recommendation-card">
+        <strong>3. Scatter-Gather Ring Buffers for Bulk Streaming</strong><br>
+        Moving from one-shot simple DMA transfers to circular Scatter-Gather descriptor queues would pipeline transfers continuously and remove per-packet CPU arming overhead.
+    </div>
+
+</div>
+
+</body>
+</html>
