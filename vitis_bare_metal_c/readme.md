@@ -2,6 +2,9 @@
 
 This guide explains how to set up the **Vitis** software project, program the **Pynq‑Z2** FPGA, and use the **Integrated Logic Analyzer (ILA)** for debugging the AES‑128 encryption core. The test application is designed to validate the core with various patterns and includes a special pause before the 0xFF test to allow ILA triggering.
 
+https://htmlpreview.github.io/?https://github.com/raghul7cj/AES-AXI-IP/blob/embedded_exploration/aes_dma_performance_report.html
+for more detailed benchmark
+
 ## Prerequisites
 
 - **Hardware:** Pynq‑Z2 board, USB‑UART cable (included), micro‑USB for programming/power.
