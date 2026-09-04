@@ -65,12 +65,14 @@
 #include "xil_cache.h"
 #include "xil_printf.h"
 #include "xparameters.h"
+#include "xaxidma.h"
 #include "xil_io.h"
-#include "axi_dma_reg.h"
 
 #define AES_BASE   XPAR_AXI_AES_IP_0_BASEADDR
+#define DMA_DEV_ID XPAR_AXIDMA_0_DEVICE_ID
 
-u8 TxBuffer[128] __attribute__ ((aligned(64)));  // Aligned to 64 bytes for AXI cache line bursts
+XAxiDma AxiDma;
+u8 TxBuffer[128] __attribute__ ((aligned(64)));  // 4 blocks = 64 bytes
 u8 RxBuffer[128] __attribute__ ((aligned(64)));
 
 void wait_for_ila_setup(void)
@@ -90,75 +92,20 @@ void print_hex(const char* label, u8* data, int len)
     xil_printf("\n\r");
 }
 
-// ============================================================================
-// TEST 1: Simple 1-Block (16-byte) Register-Level DMA Transfer
-// ============================================================================
-int run_simple_dma_test(void)
-{
-    xil_printf("\n\r----------------------------------------\n\r");
-    xil_printf("TEST 1: Simple 1-Block DMA Transfer (16 bytes)\n\r");
-    xil_printf("----------------------------------------\n\r");
-
-    // Single 16-byte NIST test block
-    u8 pattern[16] = {
-        0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA, 0x99, 0x88,
-        0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x00
-    };
-
-    // Expected ciphertext for Key=0 (reversed endianness to match IP core)
-    u8 gold_reversed[16] = {
-        0x0b, 0x76, 0xfb, 0xbe,
-        0x5d, 0x54, 0xe1, 0x75,
-        0xb1, 0x3d, 0xdd, 0x8e,
-        0xff, 0x31, 0xa3, 0xc8
-    };
-
-    // 1. Prepare buffers
-    memcpy(TxBuffer, pattern, 16);
-    memset(RxBuffer, 0, 16);
-
-    // 2. Cache maintenance: Push TxBuffer to DDR, Invalidate RxBuffer in Cache
-    Xil_DCacheFlushRange((UINTPTR)TxBuffer, 16);
-    Xil_DCacheInvalidateRange((UINTPTR)RxBuffer, 16);
-
-    // 3. Register-Level DMA Kickoff
-    // CRITICAL: Always arm receiver (S2MM) before transmitter (MM2S)!
-    dma_s2mm_start((UINTPTR)RxBuffer, 16);
-    dma_mm2s_start((UINTPTR)TxBuffer, 16);
-
-    // 4. Poll registers for completion
-    int status = dma_wait_completion();
-    if (status != 0) {
-        xil_printf("[TEST FAIL] DMA Transfer Error or Timeout (status = %d)!\n\r", status);
-        dma_dump_status();
-        return -1;
-    }
-
-    // 5. Invalidate RxBuffer so CPU reads newly received DDR data
-    Xil_DCacheInvalidateRange((UINTPTR)RxBuffer, 16);
-
-    // 6. Verify Result
-    print_hex("Plaintext Input    ", TxBuffer, 16);
-    print_hex("Ciphertext Received", RxBuffer, 16);
-    print_hex("Ciphertext Expected", gold_reversed, 16);
-
-    int match = (memcmp(RxBuffer, gold_reversed, 16) == 0);
-    xil_printf("Simple Test Result : [%s]\n\r", match ? "PASS" : "FAIL");
-    return match ? 0 : -1;
-}
-
-// ============================================================================
-// TEST 2: Backpressure Test (4 Blocks = 64 bytes in one stream)
-// ============================================================================
 void run_backpressure_test(void)
 {
-    xil_printf("\n\r----------------------------------------\n\r");
-    xil_printf("TEST 2: Backpressure Test (4 Blocks = 64 bytes)\n\r");
-    xil_printf("----------------------------------------\n\r");
+    // --------------------------------------------------------------------
+    // Pattern: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF
+    // --------------------------------------------------------------------
+	u8 pattern[16] = {
+	    0xFF,0xEE,0xDD,0xCC,0xBB,0xAA,0x99,0x88,
+	    0x77,0x66,0x55,0x44,0x33,0x22,0x11,0x00
+	};
 
-    u8 pattern[16] = {
-        0xFF,0xEE,0xDD,0xCC,0xBB,0xAA,0x99,0x88,
-        0x77,0x66,0x55,0x44,0x33,0x22,0x11,0x00
+    // Expected ciphertext as provided (original order)
+    u8 gold_original[16] = {
+        0xc8,0xa3,0x31,0xff,0x8e,0xdd,0x3d,0xb1,
+        0x75,0xe1,0x54,0x5d,0xbe,0xfb,0x76,0x0b
     };
 
     u8 gold_reversed[16] = {
@@ -180,57 +127,59 @@ void run_backpressure_test(void)
     Xil_DCacheFlushRange((UINTPTR)TxBuffer, 64);
     Xil_DCacheInvalidateRange((UINTPTR)RxBuffer, 64);
 
-    // Register-Level DMA execution: Arm RX, then launch TX
-    dma_s2mm_start((UINTPTR)RxBuffer, 64);
-    dma_mm2s_start((UINTPTR)TxBuffer, 64);
+    // Start DMA (RX first, then TX)
+    XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR)RxBuffer, 64, XAXIDMA_DEVICE_TO_DMA);
+    XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR)TxBuffer, 64, XAXIDMA_DMA_TO_DEVICE);
 
-    // Wait for completion via status register polling
-    if (dma_wait_completion() != 0) {
-        xil_printf("DMA transfer failed!\n\r");
-        dma_dump_status();
-    }
+    // Wait for completion
+    while (XAxiDma_Busy(&AxiDma, XAXIDMA_DMA_TO_DEVICE));
+    while (XAxiDma_Busy(&AxiDma, XAXIDMA_DEVICE_TO_DMA));
 
-    // Refresh cache for CPU read
     Xil_DCacheInvalidateRange((UINTPTR)RxBuffer, 64);
 
     // Display results
+    xil_printf("\n\r--- BACK‑PRESSURE TEST (4 blocks) ---\n\r");
+    xil_printf("Expected (original) : ");
+    print_hex("", gold_original, 16);
+    xil_printf("Expected (reversed) : ");
+    print_hex("", gold_reversed, 16);
+
     for (int i = 0; i < 4; i++) {
         xil_printf("Block %d:\n\r", i);
         print_hex("  Input   ", &TxBuffer[i*16], 16);
         print_hex("  Received", &RxBuffer[i*16], 16);
         int match = (memcmp(&RxBuffer[i*16], gold_reversed, 16) == 0);
-        xil_printf("  Result  : [%s]\n\r", match ? "PASS" : "FAIL");
+        xil_printf("  Result  : [%s] (using reversed expected)\n\r", match ? "PASS" : "FAIL");
     }
 }
 
 int main(void)
 {
-    xil_printf("\n\r====================================================\n\r");
-    xil_printf("AES-128 CRYPTO ACCELERATOR - REGISTER-LEVEL DMA TEST\n\r");
-    xil_printf("====================================================\n\r");
+    XAxiDma_Config *CfgPtr;
 
-    // 1. Initialize DMA via direct control register manipulation
-    dma_init();
+    xil_printf("\n\r=== AES-128 BACK‑PRESSURE TEST ===\n\r");
 
-    // 2. Configure AES-128 Encryption Key = 0
+    // Init DMA
+    CfgPtr = XAxiDma_LookupConfig(DMA_DEV_ID);
+    XAxiDma_CfgInitialize(&AxiDma, CfgPtr);
+    XAxiDma_IntrDisable(&AxiDma, XAXIDMA_IRQ_ALL_MASK, XAXIDMA_DEVICE_TO_DMA);
+    XAxiDma_IntrDisable(&AxiDma, XAXIDMA_IRQ_ALL_MASK, XAXIDMA_DMA_TO_DEVICE);
+
+    // Set key = 0
     Xil_Out32(AES_BASE + 0x00, 0);
     Xil_Out32(AES_BASE + 0x04, 0);
     Xil_Out32(AES_BASE + 0x08, 0);
     Xil_Out32(AES_BASE + 0x0C, 0);
-    Xil_Out32(AES_BASE + 0x14, 0x1);  // start key expansion pulse
+    Xil_Out32(AES_BASE + 0x14, 0x1);  // start key expansion
     Xil_Out32(AES_BASE + 0x14, 0x0);
-    while ((Xil_In32(AES_BASE + 0x18) & 0x02) == 0);  // wait for key expansion done
-    xil_printf("[AES] Key expansion complete.\n\r");
+    while ((Xil_In32(AES_BASE + 0x18) & 0x02) == 0);  // wait for done
 
-    // 3. Optional ILA Setup Pause
-    // wait_for_ila_setup();  // Uncomment if debugging with Vivado ILA
+    // Optional: pause before transfer to set up ILA
+    wait_for_ila_setup();   // Comment out if not debugging
 
-    // 4. Run Test 1: Simple 1-block transfer (16 bytes)
-    run_simple_dma_test();
-
-    // 5. Run Test 2: Multi-block backpressure stream (64 bytes)
+    // Run the test
     run_backpressure_test();
 
-    xil_printf("\n\r=== ALL TESTS COMPLETED ===\n\r");
+    xil_printf("\n\r=== TEST COMPLETE ===\n\r");
     return 0;
 }

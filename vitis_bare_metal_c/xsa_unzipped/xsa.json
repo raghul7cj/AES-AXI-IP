@@ -1,0 +1,99 @@
+{
+    "versionMajor": "0",
+    "versionMinor": "0",
+    "usesPR": "false",
+    "platformState": "pre_synth",
+    "topModuleName": "aes_dma_loop_wrapper",
+    "acceleratorBinaryFormat": "xclbin2",
+    "acceleratorBinaryContent": "bitstream",
+    "validAcceleratorBinaryContentValues": "dcp,bitstream",
+    "dcpFunctionStripped": "false",
+    "dcpEncrypted": "false",
+    "defaultOutputType": "hw_export",
+    "designIntent": {
+        "dataCenter": {
+            "value": "false",
+            "explicit": "false"
+        },
+        "embedded": {
+            "value": "false",
+            "explicit": "false"
+        },
+        "externalHost": {
+            "value": "false",
+            "explicit": "false"
+        },
+        "serverManaged": {
+            "value": "false",
+            "explicit": "false"
+        }
+    },
+    "board": {
+        "name": "tul.com.tw:pynq-z2:1.0",
+        "vendor": "tul.com.tw",
+        "part": "xc7z020clg400-1",
+        "boardPart": "tul.com.tw:pynq-z2:part0:1.0",
+        "imageFileHdpi": "pynq_z2.jpg"
+    },
+    "devices": [
+        {
+            "name": "fpga0",
+            "type": "8",
+            "fpgaPart": "zynq:xc7z020:clg400:-1",
+            "part": {
+                "name": "xc7z020clg400-1",
+                "architecture": "zynq",
+                "device": "xc7z020",
+                "package": "clg400",
+                "speedGrade": "-1"
+            },
+            "numSLRs": "1",
+            "core": {
+                "name": "OCL_REGION_0",
+                "type": "clc_region",
+                "numComputeUnits": "60",
+                "availableResources": {
+                    "bramCount": "91",
+                    "dspCount": "220",
+                    "lutCount": "43395",
+                    "registerCount": "92865"
+                }
+            }
+        }
+    ],
+    "files": [
+        {
+            "name": "aes_dma_loop_wrapper.bit",
+            "type": "FULL_BIT"
+        }
+    ],
+    "vendor": "xilinx",
+    "boardId": "nexys4_ddr",
+    "description": "Vivado generated Hardware Platform",
+    "uniqueName": "xilinx:nexys4_ddr::0.0",
+    "fpgaPart": "zynq",
+    "fpgaDevice": "xc7z020",
+    "unifiedPlatform": "true",
+    "expandablePlatform": "false",
+    "hardware": "true",
+    "softwareEmulation": "true",
+    "hardwareEmulation": "false",
+    "hardwareEmuPlatform": "false",
+    "usesNIFD": "false",
+    "generatedName": "Vivado",
+    "generatedVersion": "2022.2",
+    "generatedChangeList": "3671981",
+    "generatedIpChangeList": "3669848",
+    "generatedTimestamp": "Fri Feb 13 03:44:44 2026",
+    "idCode": "03727093",
+    "designIDs": {
+        "designID": "2827777055"
+    },
+    "resources": [
+        {
+            "type": "REG",
+            "count": "92865"
+        }
+    ]
+}
+

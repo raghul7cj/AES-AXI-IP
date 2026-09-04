@@ -34,9 +34,13 @@ This guide explains how to set up the **Vitis** software project, program the **
 
 You can program the bitstream either from **Vivado** or directly from **Vitis**.
 
- Keep Vivado open – you will use it to arm the ILA later.
+### Option A: Using Vivado Hardware Manager
+1. Open Vivado.
+2. Open the hardware manager and connect to the Pynq‑Z2 (auto‑detect).
+3. Program the device with the bitstream that includes the ILA core.
+4. Keep Vivado open – you will use it to arm the ILA later.
 
-### Using Vitis (if the bitstream is included in the platform)
+### Option B: Using Vitis (if the bitstream is included in the platform)
 1. In Vitis, right‑click the application project and select **Launch Hardware**.
 2. The FPGA will be programmed automatically when the application runs (if the platform includes the bitstream). However, for ILA debug, it is often easier to use Vivado.
 
@@ -56,14 +60,14 @@ To capture waveforms when the 0xFF pattern is sent, follow these steps:
 - Ensure your Vivado project includes an ILA core connected to the AES‑128’s AXI‑Stream interface signals (`s_axis_tdata`, `tvalid`, `tready`, `tlast`, etc.).
 - Set up a suitable trigger condition. Two useful examples:
   - **Trigger on any data:** `s_axis_tdata != 0`
-  - **Trigger on back‑pressure:** `s_axis_tvalid == 1 && s_axis_tready == 1`
+  - **Trigger on back‑pressure:** `s_axis_tvalid == 1 && s_axis_tready == 0`
 
 ### 2. Set a Breakpoint in Vitis
 - In the source code, find the `run_vector()` function that sends the 0xFF pattern. Inside it, locate the call to `wait_for_ila_setup()`.
 - Double‑click the left margin to set a breakpoint on that line.
 
 ### 3. Launch the Debug Session
-- In Vitis, select **Run As → Launch on Hardware**.
+- In Vitis, select **Debug As → Launch on Hardware**.
 - The program will run and halt at the breakpoint **before** the DMA transfer for the 0xFF block begins.
 
 ### 4. Arm the ILA in Vivado
@@ -115,8 +119,4 @@ The test suite includes a **multi‑block test** that sends the same 16‑byte b
 
 ---
 
-
 This guide should help you successfully run the AES‑128 test suite and leverage ILA for in‑depth debugging. For any further issues, consult the Vivado/Vitis documentation or your hardware design files.
-
-## ILA RESULTS
-![WhatsApp Image 2026-02-13 at 4 09 52 PM](https://github.com/user-attachments/assets/ddb81109-e3be-46b0-815e-3f3acb33a3b5)
