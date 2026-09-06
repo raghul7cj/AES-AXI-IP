@@ -7,7 +7,6 @@
 
 > **Repository Subdirectory:** [`vitis_bare_metal_c`](https://github.com/raghul7cj/AES-AXI-IP/tree/embedded_exploration/vitis_bare_metal_c)  
 > **Author:** RAGHUL CJ (`iec2023047@iiita.ac.in`) — IIIT Allahabad  
-> **Reports & Documentation:** [Executive Performance Report (HTML)](docs/aes_dma_performance_report.html) | [Granular Latency Specification](docs/GRANULAR_LATENCY_SPECIFICATION.md) | [Final Technical Report](docs/A7_FINAL_TECHNICAL_DOCUMENTATION.md)
 
 ---
 
